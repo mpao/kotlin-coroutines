@@ -1,7 +1,7 @@
 # kotlin-coroutines
 codebase from https://codelabs.developers.google.com/codelabs/kotlin-coroutines/
 
-### Coroutines in Kotlin
+## 1. Coroutines in Kotlin
 
 The keyword `suspend` is Kotlin's way of marking a function,
 or function type, available to coroutines.
@@ -46,7 +46,7 @@ suspend fun slowFetch(): SlowResult { ... }
 suspend fun anotherFetch(): AnotherResult { ... }
 ```
 
-### Controlling the UI with coroutines
+#### Controlling the UI with coroutines
 
 In Kotlin, all coroutines run inside a [CoroutineScope](https://kotlin.github.io/kotlinx.coroutines/kotlinx-coroutines-core/kotlinx.coroutines/-coroutine-scope/index.html).
 A scope controls the lifetime of coroutines through its job.
@@ -78,3 +78,58 @@ Scopes created with the `CoroutineScope` constructor add an implicit job, which 
 ```java
 uiScope.coroutineContext.cancel()
 ```
+
+## 2. Converting existing callback APIs with coroutines
+
+starting from commit [b42393a](b42393a7f418d0b90fc746076af883db89526b31).
+
+The goal of this exercise is to expose our network API as a suspend function so that `refreshTitle` can be rewritten as a coroutine.
+To do that Kotlin provides a function `suspendCoroutine` that's used to convert callback-based APIs to suspend functions.
+Calling `suspendCoroutine` will immediately suspend the current coroutine. `suspendCoroutine` will give you a `continuation`
+object that you can use to resume the coroutine. A continuation does what it sounds like:
+it holds all the context needed to continue, or resume, a suspended coroutine.
+The `continuation` that `suspendCoroutine` provides has two functions: `resume` and `resumeWithException`.
+Calling either function will cause `suspendCoroutine` to resume immediately.
+You can use `suspendCoroutine` to suspend before waiting for a callback. Then, after the callback is called call `resume`
+or `resumeWithException` to resume with the result of the callback.
+An example of `suspendCoroutine` looks like this:
+```java
+// Example of suspendCoroutine
+
+/**
+ * A class that passes strings to callbacks
+ */
+class Call {
+  fun addCallback(callback: (String) -> Unit)
+}
+
+/**
+ * Exposes callback based API as a suspend function so it can be used in coroutines.
+ */
+suspend fun convertToSuspend(call: Call): String {
+   // 1: suspendCoroutine and will immediately *suspend*
+   // the coroutine. It can be only *resumed* by the
+   // continuation object passed to the block.
+   return suspendCoroutine { continuation ->
+       // 2: pass a block to suspendCoroutine to register callbacks
+
+       // 3: add a callback to wait for the result
+       call.addCallback { value ->
+           // 4: use continuation.resume to *resume* the coroutine
+           // with the value. The value passed to resume will be
+           // the result of suspendCoroutine.
+           continuation.resume(value)
+       }
+   }
+}
+```
+
+This example shows how to use suspendCoroutine to convert a callback-based API on Call into a suspend function.
+You can now use Call directly in coroutine based code, for example
+```java
+suspend fun exampleUsage() {
+    val call = makeLongRunningCall()
+    convertToSuspend(call) // suspends until the long running call completes
+}
+```
+

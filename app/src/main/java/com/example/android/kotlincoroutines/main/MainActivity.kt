@@ -22,15 +22,18 @@ import android.os.Bundle
 import android.support.constraint.ConstraintLayout
 import android.support.design.widget.Snackbar
 import android.support.v7.app.AppCompatActivity
+import android.view.View
+import android.widget.ProgressBar
+import android.widget.TextView
 import com.example.android.kotlincoroutines.R
 
 /**
- * Main Activity for our application. This activity uses [MainViewModel] to implement MVVM.
+ * Show layout.activity_main and setup data binding.
  */
 class MainActivity : AppCompatActivity() {
 
     /**
-     * Inflate layout and setup click listeners and LiveData observers.
+     * Inflate layout.activity_main and setup data binding.
      */
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -38,14 +41,34 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
 
         val rootLayout: ConstraintLayout = findViewById(R.id.rootLayout)
+        val title: TextView = findViewById(R.id.title)
+        val spinner: ProgressBar = findViewById(R.id.spinner)
 
-        val viewModel = ViewModelProviders.of(this)
+        // Get MainViewModel by passing a database to the factory
+        val database = getDatabase(this)
+        val repository = TitleRepository(MainNetworkImpl, database.titleDao)
+        val viewModel = ViewModelProviders
+            .of(this, MainViewModel.FACTORY(repository))
             .get(MainViewModel::class.java)
 
         // When rootLayout is clicked call onMainViewClicked in ViewModel
         rootLayout.setOnClickListener {
             viewModel.onMainViewClicked()
         }
+
+        // update the title when the [MainViewModel.title] changes
+        viewModel.title.observe(this, Observer { value ->
+            value?.let {
+                title.text = it
+            }
+        })
+
+        // show the spinner when [MainViewModel.spinner] is true
+        viewModel.spinner.observe(this, Observer { value ->
+            value?.let { show ->
+                spinner.visibility = if (show) View.VISIBLE else View.GONE
+            }
+        })
 
         // Show a snackbar whenever the [ViewModel.snackbar] is updated with a non-null value
         viewModel.snackbar.observe(this, Observer { text ->
